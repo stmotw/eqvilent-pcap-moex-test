@@ -6,7 +6,7 @@ namespace eqvilent::network::packets {
         uint8_t destination[6];
         uint8_t source[6];
         uint8_t type[2];
-    };
+    } __attribute__((packed));
 
     // simplification:
     // - grouping up some fields for easy pasrsing.
@@ -22,48 +22,45 @@ namespace eqvilent::network::packets {
         uint8_t headerChecksum[2];
         uint8_t sourceIpAddress[4];
         uint8_t destinationIpAddress[4];
-    };
+    } __attribute__((packed));
 
     struct UDPHeader {
         uint8_t sourcePort[2];
         uint8_t destinationPort[2];
         uint8_t length[2];
         uint8_t checksum[2];
-    };
+    } __attribute__((packed));
 
-    template<PacketParser Parser>
+    template<PacketParser UDPBodyParser>
     class UDPParser {
-    public:
-        typedef typename Parser::packet_type packet_type;
+        UDPBodyParser parser;
 
-        static std::optional<packet_type> parse(uint8_t* buffer, size_t bufferLength) {
-            if (bufferLength < sizeof(EthernetIIHeader)) {
-                return {};
-            }
+    public:
+        typedef typename UDPBodyParser::packet_type packet_type;
+
+        UDPParser()
+            : parser{}
+        {}
+
+        std::optional<packet_type> parse(uint8_t* buffer, size_t bufferLength) {
             [[maybe_unused]] EthernetIIHeader* ethernetHeader = reinterpret_cast<EthernetIIHeader*>(buffer);
             buffer += sizeof(EthernetIIHeader);
             bufferLength -= sizeof(EthernetIIHeader);
             
-            if (bufferLength < sizeof(IPv4Header)) {
-                return {};
-            }
             [[maybe_unused]] IPv4Header* ipv4Header = reinterpret_cast<IPv4Header*>(buffer);
             buffer += sizeof(IPv4Header);
             bufferLength -= sizeof(IPv4Header);
 
-            if (bufferLength < sizeof(UDPHeader)) {
-                return {};
-            }
-            [[maybe_unused]] UDPHeader* udpHeader = reinterpret_cast<UDPHeader*>(buffer);
+            UDPHeader* udpHeader = reinterpret_cast<UDPHeader*>(buffer);
             buffer += sizeof(UDPHeader);
             bufferLength -= sizeof(UDPHeader);
 
             if (size_t udpDataLength = (size_t(udpHeader->length[0]) << 8) + size_t(udpHeader->length[1]);
                 udpDataLength != sizeof(UDPHeader) + bufferLength) {
-                return {};
+                return std::nullopt;
             }
             
-            return Parser::parse(buffer, bufferLength);
+            return parser.parse(buffer, bufferLength);
         }
     };
 }

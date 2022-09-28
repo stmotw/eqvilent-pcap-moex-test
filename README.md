@@ -8,5 +8,5 @@ popd
 
 cmake . && make
 
-cat data/Corvil-13052-1636559040000000000-1636560600000000000.pcap | build/eqvilent > result.txt
+cat data/Corvil-13052-1636559040000000000-1636560600000000000.pcap | build/eqvilent > data/parsed.txt
 ```

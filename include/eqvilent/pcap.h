@@ -13,18 +13,19 @@ namespace eqvilent::network::pcap {
         uint32_t timestampAccuracy; // always 0
         uint32_t snapshotLength;
         uint32_t linkLayerHeader;
-    };
+    } __attribute__((packed));
 
     struct PacketRecordHeader {
         uint32_t timestampSeconds;
         uint32_t timestampSubseconds;
         uint32_t capturedPacketLength;
         uint32_t originalPacketLength;
-    };
+    } __attribute__((packed));
 
-    template<PacketParser Parser>
+    template<PacketParser PCAPBodyParser>
     class PCAPReader {
-        uint8_t* buffer = nullptr;
+        uint8_t* buffer;
+        PCAPBodyParser parser;
 
     public:
         // simplification, we're not checking
@@ -32,7 +33,10 @@ namespace eqvilent::network::pcap {
         // - version, it's always 2.4
         // - timeZoneOffset and timestampAccuracy to be equal zero, indicating no data corruption
         // - linkLayerHeader info
-        PCAPReader() {
+        PCAPReader() 
+            : buffer(nullptr)
+            , parser{}
+        {
             FileHeader fileHeader;
             if (fread(reinterpret_cast<uint8_t*>(&fileHeader), 1, sizeof(FileHeader), stdin)) {
                 buffer = reinterpret_cast<uint8_t*>(malloc(fileHeader.snapshotLength));
@@ -43,23 +47,22 @@ namespace eqvilent::network::pcap {
             free(buffer);
         }
 
-        std::optional<typename Parser::packet_type> next() {
+        std::optional<typename PCAPBodyParser::packet_type> next() {
             PacketRecordHeader packetRecord;
 
             // cannot read next packet header
             if (!fread(reinterpret_cast<uint8_t*>(&packetRecord), 1, sizeof(pcap::PacketRecordHeader), stdin)) {
-                return {};
+                return std::nullopt;
             }
             // simplification, moex dump does not have large packets
             if (packetRecord.capturedPacketLength != packetRecord.originalPacketLength) {
-                return {};
-            }
-            // cannot read next packet data
-            if (!fread(buffer, 1, packetRecord.capturedPacketLength, stdin)) {
-                return {};
+                return std::nullopt;
             }
 
-            return Parser::parse(reinterpret_cast<uint8_t *>(buffer), packetRecord.capturedPacketLength);
+            if (!fread(buffer, 1, packetRecord.capturedPacketLength, stdin)) {
+                return std::nullopt;
+            }
+            return parser.parse(reinterpret_cast<uint8_t *>(buffer), packetRecord.capturedPacketLength);
         }
     };
 }
